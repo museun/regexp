@@ -1,14 +1,18 @@
-use crate::{parser, Error, Result};
+use crate::parser;
 
 use std::cmp::max;
 use std::collections::VecDeque;
 use std::io::Write;
 
+mod error;
 mod instruction;
 mod operation;
 
+pub use self::error::{Error, ErrorKind};
 pub use self::instruction::Instruction;
 use self::operation::Operation;
+
+type Result<T> = std::result::Result<T, Error>;
 
 const MAX_GROUPS: usize = 10 * 2;
 
@@ -171,7 +175,7 @@ impl Compiler {
             if let Some(name) = name {
                 let opt = Some(name);
                 if self.names.contains(&opt) {
-                    return Err(Error::GroupAlreadyDefined);
+                    return Err(ErrorKind::GroupAlreadyDefined.into());
                 }
                 self.names.push_back(opt);
             } else {

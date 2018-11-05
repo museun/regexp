@@ -18,8 +18,8 @@ pub struct Regex {
 impl Regex {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(pattern: &str) -> Result<Regex, Error> {
-        let ast = Parser::parse(pattern)?;
-        let prog = Compiler::compile(&ast)?;
+        let ast = Parser::parse(pattern).map_err(Error::ParserError)?;
+        let prog = Compiler::compile(&ast).map_err(Error::CompilerError)?;
 
         Ok(Self {
             machine: Machine::new(prog),
@@ -27,7 +27,8 @@ impl Regex {
     }
 
     pub fn find(&mut self, input: &str) -> bool {
-        self.machine.find_match(input, 0)
+        let (ok, _) = self.machine.find_match(input, 0);
+        ok
     }
 
     pub fn matches(&mut self, input: &str) -> Matches {

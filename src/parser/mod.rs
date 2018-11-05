@@ -1,14 +1,16 @@
-use crate::{Error, Result};
-
 use std::borrow::Cow;
 use std::fmt;
 use std::{iter::Peekable, str::CharIndices};
 
 mod ast;
 mod charset;
+mod error;
 
 pub use self::ast::{Expr, Expression, Repetition};
 pub use self::charset::CharSet;
+pub use self::error::{Error, ErrorKind};
+
+type Result<T> = std::result::Result<T, Error>;
 
 pub struct Parser<'a> {
     stack: Vec<Expr>,
@@ -38,6 +40,13 @@ impl<'a> fmt::Debug for Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
+    fn error<T>(&self, kind: ErrorKind) -> Result<T> {
+        Err(Error {
+            pos: self.pos,
+            kind,
+        })
+    }
+
     pub fn parse(input: &'a str) -> Result<Expression> {
         let mut this = Self {
             stack: vec![],
@@ -54,7 +63,7 @@ impl<'a> Parser<'a> {
         };
 
         if this.advance().is_none() {
-            return Err(Error::EmptyRegex);
+            return this.error(ErrorKind::EmptyRegex);
         }
 
         'exit: loop {
@@ -68,14 +77,14 @@ impl<'a> Parser<'a> {
                 ')' => this.group()?,
                 '^' => {
                     if this.pos != 1 {
-                        return Err(Error::BolPosition);
+                        return this.error(ErrorKind::BolPosition);
                     }
                     this.bol = true;
                     this.advance();
                 }
                 '$' => {
                     if this.pos != input.len() {
-                        return Err(Error::EolPosition);
+                        return this.error(ErrorKind::EolPosition);
                     }
                     this.eol = true;
                     this.advance();
@@ -165,17 +174,17 @@ impl<'a> Parser<'a> {
                                 }
                                 name.push(ch)
                             } else {
-                                return Err(Error::UnfinishedName); // TODO end
+                                return self.error(ErrorKind::UnfinishedName); // TODO end
                             }
                         }
                         self.paren += 1;
                         self.advance(); // >
                         self.stack.push(Expr::CaptureLParen(self.paren, Some(name)));
                     } else {
-                        return Err(Error::UnfinishedName); // TODO begin
+                        return self.error(ErrorKind::UnfinishedName); // TODO begin
                     }
                 }
-                _ => return Err(Error::UnknownGroupFlag),
+                _ => return self.error(ErrorKind::UnknownGroupFlag),
             }
         } else {
             self.paren += 1;
@@ -198,7 +207,7 @@ impl<'a> Parser<'a> {
                     .push(Expr::CaptureGroup(p, name, Box::new(group)))
             }
             Some(Expr::LParen) => self.stack.push(Expr::Group(Box::new(group))),
-            _ => return Err(Error::UnmatchedParen),
+            _ => return self.error(ErrorKind::UnmatchedParen),
         }
 
         Ok(())
@@ -226,7 +235,7 @@ impl<'a> Parser<'a> {
         let mut range = false;
         loop {
             match self.current {
-                None => return Err(Error::UnterminatedCharSet),
+                None => return self.error(ErrorKind::UnterminatedCharSet),
                 Some(']') if !escape => break,
                 Some('-') if !escape => {
                     if let Some((_, ']')) = self.iter.peek() {
@@ -235,7 +244,7 @@ impl<'a> Parser<'a> {
                         continue;
                     }
                     if prev.is_none() {
-                        return Err(Error::InvalidCharacterRange);
+                        return self.error(ErrorKind::InvalidCharacterRange);
                     }
                     range = true;
                     self.advance();
@@ -246,12 +255,12 @@ impl<'a> Parser<'a> {
                 }
                 Some(c) => {
                     if !chars.add(c) {
-                        return Err(Error::InvalidEncoding);
+                        return self.error(ErrorKind::InvalidEncoding);
                     }
                     if range {
                         let s = prev.unwrap();
                         if s as u8 > c as u8 {
-                            return Err(Error::InvalidCharacterRange);
+                            return self.error(ErrorKind::InvalidCharacterRange);
                         }
                         for b in s as u8 + 1..c as u8 {
                             chars.add(b as char);
@@ -282,9 +291,9 @@ impl<'a> Parser<'a> {
             | Some(t @ Expr::Any)
             | Some(t @ Expr::CaptureGroup(..))
             | Some(t @ Expr::CharSet(..)) => t,
-            None => return Err(Error::NothingToRepeat),
+            None => return self.error(ErrorKind::NothingToRepeat),
             _e => {
-                return Err(Error::CannotRepeat);
+                return self.error(ErrorKind::CannotRepeat);
             }
         };
 
@@ -311,13 +320,13 @@ impl<'a> Parser<'a> {
 
                 let max = match self.integer() {
                     None if !comma => Some(min),
-                    Some(max) if min > max => return Err(Error::InvalidRepetition),
+                    Some(max) if min > max => return self.error(ErrorKind::InvalidRepetition),
                     max => max,
                 };
 
                 match self.current {
                     Some('}') => self.advance(),
-                    _ => return Err(Error::InvalidRepetition),
+                    _ => return self.error(ErrorKind::InvalidRepetition),
                 };
 
                 (min, max)
@@ -374,47 +383,20 @@ impl<'a> Parser<'a> {
     }
 
     fn alternation(&mut self) -> Result<()> {
-        fn alternation(
-            this: &mut Parser<'_>,
-            mut terms: Vec<Expr>,
-            exprs: Option<Vec<Expr>>,
-        ) -> Result<()> {
-            //
-            if terms.is_empty() {
-                return Err(Error::MissingAlternation);
-            }
-
-            terms.reverse();
-            let concat = match terms.len() {
-                1 => terms.pop().unwrap(),
-                _ => Expr::Concatenation(terms),
-            };
-
-            match exprs {
-                None => this.stack.push(Expr::Alternation(vec![concat])),
-                Some(mut list) => {
-                    list.push(concat);
-                    this.stack.push(Expr::Alternation(list));
-                }
-            };
-
-            Ok(())
-        }
-
         let mut terms = vec![];
         loop {
             match self.stack.pop() {
                 None => {
-                    alternation(self, terms, None)?;
+                    self.push_alternation(terms, None)?;
                     break;
                 }
                 Some(p @ Expr::LParen) | Some(p @ Expr::CaptureLParen(..)) => {
                     self.stack.push(p);
-                    alternation(self, terms, None)?;
+                    self.push_alternation(terms, None)?;
                     break;
                 }
                 Some(Expr::Alternation(list)) => {
-                    alternation(self, terms, Some(list))?;
+                    self.push_alternation(terms, Some(list))?;
                     break;
                 }
                 Some(t) => terms.push(t),
@@ -425,62 +407,79 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    fn end(&mut self, sub: bool) -> Result<()> {
-        fn end(
-            stack: &mut Vec<Expr>,
-            mut terms: Vec<Expr>,
-            exprs: Option<Vec<Expr>>,
-        ) -> Result<()> {
-            //
-            if terms.is_empty() {
-                return match exprs {
-                    Some(_) => Err(Error::MissingAlternation),
-                    None => Err(Error::EmptyRegex),
-                };
-            }
-
-            terms.reverse();
-            let concat = match terms.len() {
-                1 => terms.pop().unwrap(),
-                _ => Expr::Concatenation(terms),
-            };
-
-            match exprs {
-                None => stack.push(concat),
-                Some(mut list) => {
-                    list.push(concat);
-                    stack.push(Expr::Alternation(list))
-                }
-            }
-            Ok(())
+    fn push_alternation(&mut self, mut terms: Vec<Expr>, exprs: Option<Vec<Expr>>) -> Result<()> {
+        if terms.is_empty() {
+            return self.error(ErrorKind::MissingAlternation);
         }
 
+        terms.reverse();
+        let concat = match terms.len() {
+            1 => terms.pop().unwrap(),
+            _ => Expr::Concatenation(terms),
+        };
+
+        match exprs {
+            None => self.stack.push(Expr::Alternation(vec![concat])),
+            Some(mut list) => {
+                list.push(concat);
+                self.stack.push(Expr::Alternation(list));
+            }
+        };
+
+        Ok(())
+    }
+
+    fn end(&mut self, sub: bool) -> Result<()> {
         let mut terms = vec![];
         loop {
             match self.stack.pop() {
                 None => {
                     if sub {
-                        return Err(Error::UnmatchedParen);
+                        return self.error(ErrorKind::UnmatchedParen);
                     }
-                    end(&mut self.stack, terms, None)?;
+                    self.push_end(terms, None)?;
                     break;
                 }
                 Some(p @ Expr::CaptureLParen(..)) | Some(p @ Expr::LParen) => {
                     if !sub {
-                        return Err(Error::UnmatchedParen);
+                        return self.error(ErrorKind::UnmatchedParen);
                     }
                     self.stack.push(p);
-                    end(&mut self.stack, terms, None)?;
+                    self.push_end(terms, None)?;
                     break;
                 }
                 Some(Expr::Alternation(list)) => {
-                    end(&mut self.stack, terms, Some(list))?;
+                    self.push_end(terms, Some(list))?;
                     break;
                 }
                 Some(t) => terms.push(t),
             };
         }
 
+        Ok(())
+    }
+
+    fn push_end(&mut self, mut terms: Vec<Expr>, exprs: Option<Vec<Expr>>) -> Result<()> {
+        if terms.is_empty() {
+            return match exprs {
+                Some(_) => self.error(ErrorKind::MissingAlternation)?,
+                None => self.error(ErrorKind::EmptyRegex)?,
+            };
+        }
+
+        terms.reverse();
+        let concat = match terms.len() {
+            1 => terms.pop().unwrap(),
+            _ => Expr::Concatenation(terms),
+        };
+
+        match exprs {
+            None => self.stack.push(concat),
+            Some(mut list) => {
+                list.push(concat);
+                self.stack.push(Expr::Alternation(list))
+            }
+        }
         Ok(())
     }
 }
