@@ -18,6 +18,7 @@ pub enum ErrorKind {
     EolPosition,
 
     UnknownGroupFlag,
+    UnknownEscape,
 
     UnfinishedName,
     UnmatchedParen,
@@ -35,6 +36,6 @@ pub enum ErrorKind {
 
 impl From<ErrorKind> for Error {
     fn from(kind: ErrorKind) -> Self {
-        Error { pos: 0, kind: kind }
+        Error { pos: 0, kind }
     }
 }
