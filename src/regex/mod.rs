@@ -1,7 +1,7 @@
 use crate::compiler::Compiler;
 use crate::machine::Machine;
 use crate::parser::Parser;
-use crate::Result;
+use crate::Error;
 
 mod grouptype;
 mod matches;
@@ -17,13 +17,17 @@ pub struct Regex {
 
 impl Regex {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(pattern: &str) -> Result<Regex> {
+    pub fn new(pattern: &str) -> Result<Regex, Error> {
         let ast = Parser::parse(pattern)?;
         let prog = Compiler::compile(&ast)?;
 
         Ok(Self {
             machine: Machine::new(prog),
         })
+    }
+
+    pub fn find(&mut self, input: &str) -> bool {
+        self.machine.find_match(input, 0)
     }
 
     pub fn matches(&mut self, input: &str) -> Matches {
@@ -52,7 +56,7 @@ impl Regex {
             }
         }
 
-        // put the zero group in. I don't know where we lost it
+        // put the zeroth group in. I don't know where we lost it
         results.matches.insert(
             0,
             (

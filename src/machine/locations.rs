@@ -6,14 +6,13 @@ pub struct Locations([Option<usize>; 64]);
 
 impl Default for Locations {
     fn default() -> Self {
-        Self { 0: [None; 64] }
+        Locations([None; 64])
     }
 }
 
 impl fmt::Debug for Locations {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let s = self
-            .0
             .iter()
             .enumerate()
             .fold(String::new(), |mut a, (i, c)| {

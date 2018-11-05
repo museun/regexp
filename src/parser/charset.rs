@@ -3,9 +3,15 @@ use std::fmt;
 #[derive(Clone, Copy)]
 pub struct CharSet(pub [bool; 128]);
 
+impl Default for CharSet {
+    fn default() -> Self {
+        CharSet([false; 128])
+    }
+}
+
 impl CharSet {
     pub fn new() -> Self {
-        CharSet([false; 128])
+        Self::default()
     }
 
     pub fn add(&mut self, ch: char) -> bool {
