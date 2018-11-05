@@ -7,7 +7,6 @@ mod regex;
 pub enum Error {
     ParserError(parser::Error),
     CompilerError(compiler::Error),
-    MachineError(machine::Error),
 }
 
 pub mod prelude {

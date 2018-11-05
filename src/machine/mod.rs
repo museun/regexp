@@ -1,7 +1,6 @@
 use crate::{compiler, compiler::Instruction};
 
 mod action;
-mod error;
 mod locations;
 mod matches;
 mod thread;
@@ -13,8 +12,6 @@ use self::{
     matches::Matches,     //
     thread::Thread,       //
 };
-
-pub use self::error::{Error, ErrorKind};
 
 #[derive(Debug)]
 pub struct Machine {
