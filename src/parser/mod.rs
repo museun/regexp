@@ -118,7 +118,11 @@ impl<'a> Parser<'a> {
             Some('^') => '^',
             Some('$') => '$',
 
-            Some('d') | Some('D') | Some('w') | Some('W') | Some('s') | Some('S') => {
+            Some('d') | Some('w') | Some('s') | Some('l') | Some('u') => {
+                return self.metacharacter()
+            }
+
+            Some('D') | Some('W') | Some('S') | Some('L') | Some('U') => {
                 return self.metacharacter()
             }
 
@@ -137,6 +141,10 @@ impl<'a> Parser<'a> {
         // \D -> [^0-9]
         // \W -> [^A-Za-z0-9]
         // \S -> [^ \t\n\r\f]
+        // \l -> [a-z]
+        // \L -> [^a-z]
+        // \u -> [A-Z]
+        // \U -> [^A-Z]
 
         let mut cs = CharSet::new();
         match self.current {
@@ -162,6 +170,22 @@ impl<'a> Parser<'a> {
                     cs.add(n as char);
                 }
                 if c == 'S' {
+                    cs.complement();
+                }
+            }
+            Some(c @ 'l') | Some(c @ 'L') => {
+                for n in b'a'..=b'z' {
+                    cs.add(n as char);
+                }
+                if c == 'L' {
+                    cs.complement();
+                }
+            }
+            Some(c @ 'u') | Some(c @ 'U') => {
+                for n in b'A'..=b'Z' {
+                    cs.add(n as char);
+                }
+                if c == 'U' {
                     cs.complement();
                 }
             }
