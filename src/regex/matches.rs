@@ -53,7 +53,6 @@ impl<'a> Index<&'a str> for Matches {
                 _ => {}
             }
         }
-
         panic!("{} not found", index)
     }
 }

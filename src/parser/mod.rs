@@ -117,12 +117,59 @@ impl<'a> Parser<'a> {
             Some('t') => '\t',
             Some('^') => '^',
             Some('$') => '$',
-            // TODO meta characters
+
+            Some('d') | Some('D') | Some('w') | Some('W') | Some('s') | Some('S') => {
+                return self.metacharacter()
+            }
+
             Some(_c) => self.error(ErrorKind::UnknownEscape)?,
             _ => unreachable!(),
         };
         self.stack.push(Expr::Char(esc));
         self.advance();
+        Ok(())
+    }
+
+    fn metacharacter(&mut self) -> Result<()> {
+        // \d -> [0-9]
+        // \w -> [A-Za-z0-9]
+        // \s -> [ \t\n\r\f]
+        // \D -> [^0-9]
+        // \W -> [^A-Za-z0-9]
+        // \S -> [^ \t\n\r\f]
+
+        let mut cs = CharSet::new();
+        match self.current {
+            Some(c @ 'd') | Some(c @ 'D') => {
+                for n in b'0'..=b'9' {
+                    cs.add(n as char);
+                }
+                if c == 'D' {
+                    cs.complement();
+                }
+            }
+            Some(c @ 'w') | Some(c @ 'W') => {
+                for n in (b'A'..=b'Z').chain(b'a'..=b'z').chain(b'0'..=b'9') {
+                    cs.add(n as char);
+                }
+                if c == 'W' {
+                    cs.complement();
+                }
+            }
+            Some(c @ 's') | Some(c @ 'S') => {
+                cs.add(b' ' as char);
+                for n in b'\t'..=b'\r' {
+                    cs.add(n as char);
+                }
+                if c == 'S' {
+                    cs.complement();
+                }
+            }
+            _ => unreachable!(),
+        };
+
+        self.advance();
+        self.stack.push(Expr::CharSet(cs));
         Ok(())
     }
 
