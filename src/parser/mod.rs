@@ -672,6 +672,96 @@ mod tests {
     }
 
     #[test]
+    fn metacharacter() {
+        for (input, expected) in &[
+            (r"\d", {
+                let mut cs = CharSet::new();
+                for n in b'0'..=b'9' {
+                    cs.add(n as char);
+                }
+                cs
+            }),
+            (r"\D", {
+                let mut cs = CharSet::new();
+                for n in b'0'..=b'9' {
+                    cs.add(n as char);
+                }
+                cs.complement();
+                cs
+            }),
+            (r"\w", {
+                let mut cs = CharSet::new();
+                for n in (b'A'..=b'Z').chain(b'a'..=b'z').chain(b'0'..=b'9') {
+                    cs.add(n as char);
+                }
+                cs
+            }),
+            (r"\W", {
+                let mut cs = CharSet::new();
+                for n in (b'A'..=b'Z').chain(b'a'..=b'z').chain(b'0'..=b'9') {
+                    cs.add(n as char);
+                }
+                cs.complement();
+                cs
+            }),
+            (r"\s", {
+                let mut cs = CharSet::new();
+                cs.add(b' ' as char);
+                for n in b'\t'..=b'\r' {
+                    cs.add(n as char);
+                }
+                cs
+            }),
+            (r"\S", {
+                let mut cs = CharSet::new();
+                cs.add(b' ' as char);
+                for n in b'\t'..=b'\r' {
+                    cs.add(n as char);
+                }
+                cs.complement();
+                cs
+            }),
+            (r"\l", {
+                let mut cs = CharSet::new();
+                for n in b'a'..=b'z' {
+                    cs.add(n as char);
+                }
+                cs
+            }),
+            (r"\L", {
+                let mut cs = CharSet::new();
+                for n in b'a'..=b'z' {
+                    cs.add(n as char);
+                }
+                cs.complement();
+                cs
+            }),
+            (r"\u", {
+                let mut cs = CharSet::new();
+                for n in b'A'..=b'Z' {
+                    cs.add(n as char);
+                }
+                cs
+            }),
+            (r"\U", {
+                let mut cs = CharSet::new();
+                for n in b'A'..=b'Z' {
+                    cs.add(n as char);
+                }
+                cs.complement();
+                cs
+            }),
+        ] {
+            assert_eq!(
+                Parser::parse(input).unwrap().expr,
+                Expr::CharSet(*expected),
+                "failure for: {}",
+                input
+            );
+        }
+    }
+
+    #[test]
     fn parsed() {
         use self::Expr::*;
 

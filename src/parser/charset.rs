@@ -7,9 +7,27 @@ impl fmt::Display for CharSet {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut out = String::new();
 
+        for n in 0x08..0x0D {
+            if (self.0 >> n) & 1 == 1 {
+                if n == 0x0A {
+                    out.push_str(r"\h");
+                    continue;
+                }
+                if n == 0x0B {
+                    out.push_str(r"\v");
+                    continue;
+                }
+                out.push_str(&(((n + 1) as u8 as char).escape_default().to_string()));
+            }
+        }
+
+        if (self.0 >> 0x20) & 1 == 1 {
+            out.push(' ');
+        }
+
         for n in 0x20..=0x7E {
             if (self.0 >> n) & 1 == 1 {
-                out.push((((self.0 >> n) & 1) as u8 + n) as char)
+                out.push((n + 1) as u8 as char)
             }
         }
 
