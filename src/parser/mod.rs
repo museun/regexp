@@ -189,7 +189,7 @@ impl<'a> Parser<'a> {
             _ => return self.error(ErrorKind::UnmatchedParen),
         }
 
-        self.paren -= 1; // TODO check for underflow
+        self.paren -= 1; // TODO check for underflow (shouldn't be possible)
         Ok(())
     }
 
@@ -198,13 +198,13 @@ impl<'a> Parser<'a> {
 
         let mut chars = CharSet::new();
         let complement = if let Some('^') = self.current {
+            self.advance();
             true
         } else {
             false
         };
 
         let mut prev = match self.current {
-            // this needs to peek
             Some(ch @ '-') | Some(ch @ ']') => {
                 chars.add(ch);
                 self.advance();
@@ -899,188 +899,131 @@ mod tests {
             ),
             (
                 r"[abc]",
-                CharSet(CS([
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, true, true,
-                    true, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false,
-                ])),
+                CharSet({
+                    let mut cs = CS::new();
+                    cs.add('a');
+                    cs.add('b');
+                    cs.add('c');
+                    cs
+                }),
             ),
             (
                 r"[^abc]",
-                CharSet(CS([
-                    true, true, true, true, true, true, true, true, true, true, true, true, true,
-                    true, true, true, true, true, true, true, true, true, true, true, true, true,
-                    true, true, true, true, true, true, true, true, true, true, true, true, true,
-                    true, true, true, true, true, true, true, true, true, true, true, true, true,
-                    true, true, true, true, true, true, true, true, true, true, true, true, true,
-                    true, true, true, true, true, true, true, true, true, true, true, true, true,
-                    true, true, true, true, true, true, true, true, true, true, true, true, true,
-                    true, true, true, false, true, true, false, false, false, true, true, true,
-                    true, true, true, true, true, true, true, true, true, true, true, true, true,
-                    true, true, true, true, true, true, true, true, true, true, true, true,
-                ])),
+                CharSet({
+                    let mut cs = CS::new();
+                    cs.add('a');
+                    cs.add('b');
+                    cs.add('c');
+                    cs.complement();
+                    cs
+                }),
             ),
             (
                 r"[a-c]",
-                CharSet(CS([
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, true, true,
-                    true, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false,
-                ])),
+                CharSet({
+                    let mut cs = CS::new();
+                    cs.add('a');
+                    cs.add('b');
+                    cs.add('c');
+                    cs
+                }),
             ),
             (
                 r"[a-ca-e]",
-                CharSet(CS([
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, true, true,
-                    true, true, true, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false,
-                ])),
+                CharSet({
+                    let mut cs = CS::new();
+                    cs.add('a');
+                    cs.add('b');
+                    cs.add('c');
+
+                    cs.add('a');
+                    cs.add('b');
+                    cs.add('c');
+                    cs.add('d');
+                    cs.add('e');
+                    cs
+                }),
             ),
             (
                 r"[a-cx-z]",
-                CharSet(CS([
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, true, true,
-                    true, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, true,
-                    true, true, false, false, false, false, false,
-                ])),
+                CharSet({
+                    let mut cs = CS::new();
+                    cs.add('a');
+                    cs.add('b');
+                    cs.add('c');
+
+                    cs.add('x');
+                    cs.add('y');
+                    cs.add('z');
+                    cs
+                }),
             ),
             (
                 r"[a-c123x-z]",
-                CharSet(CS([
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, true, true, true, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, true, true,
-                    true, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, true,
-                    true, true, false, false, false, false, false,
-                ])),
+                CharSet({
+                    let mut cs = CS::new();
+                    cs.add('a');
+                    cs.add('b');
+                    cs.add('c');
+
+                    cs.add('1');
+                    cs.add('2');
+                    cs.add('3');
+
+                    cs.add('x');
+                    cs.add('y');
+                    cs.add('z');
+                    cs
+                }),
             ),
             (
                 r"[]a]",
-                CharSet(CS([
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, true, false, false, false, true, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false,
-                ])),
+                CharSet({
+                    let mut cs = CS::new();
+                    cs.add(']');
+                    cs.add('a');
+                    cs
+                }),
             ),
             (
                 r"[a\]b]",
-                CharSet(CS([
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, true, false, false, false, true, true,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false,
-                ])),
+                CharSet({
+                    let mut cs = CS::new();
+                    cs.add('a');
+                    cs.add(']');
+                    cs.add('b');
+                    cs
+                }),
             ),
             (
                 r"[a^b]",
-                CharSet(CS([
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, true, false, false, true, true,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false,
-                ])),
+                CharSet({
+                    let mut cs = CS::new();
+                    cs.add('a');
+                    cs.add('^');
+                    cs.add('b');
+                    cs
+                }),
             ),
             (
                 r"[-ab]",
-                CharSet(CS([
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, true, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, true, true,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false,
-                ])),
+                CharSet({
+                    let mut cs = CS::new();
+                    cs.add('-');
+                    cs.add('a');
+                    cs.add('b');
+                    cs
+                }),
             ),
             (
                 r"[a\-b]",
-                CharSet(CS([
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, true, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, true, true,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, false,
-                ])),
+                CharSet({
+                    let mut cs = CS::new();
+                    cs.add('a');
+                    cs.add('-');
+                    cs.add('b');
+                    cs
+                }),
             ),
             (r"a{,}", Repetition(Box::new(Char('a')), Star, true)),
             (r"a{,}?", Repetition(Box::new(Char('a')), Star, false)),
@@ -1168,18 +1111,12 @@ mod tests {
         ];
 
         for (input, expected) in table.iter() {
-            assert_eq!(Parser::parse(input).unwrap().expr, *expected);
+            assert_eq!(
+                Parser::parse(input).unwrap().expr,
+                *expected,
+                "failure for: {}",
+                input
+            );
         }
-
-        // use std::fs;
-        // use std::io::prelude::*;
-        // let mut file = fs::File::create("nope.txt").unwrap();
-
-        // for input in input.iter() {
-        //     let p = Parser::parse(input).unwrap();
-        //     writeln!(file, "{}", format!("{:?}", p));
-        //     writeln!(file);
-        // }
     }
-
 }
