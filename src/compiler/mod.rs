@@ -83,7 +83,7 @@ impl Program {
                 Instruction::Jump(n) => format!("{}", n),
                 Instruction::Save(n) => format!("#{}", n),
                 Instruction::Char(Char::Char(ch)) => format!("{}", ch),
-                Instruction::CharSet(cs) => format!("{:?}", cs),
+                Instruction::CharSet(cs) => format!("{}", cs),
                 _ => "".into(),
             };
             writeln!(
