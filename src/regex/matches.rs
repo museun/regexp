@@ -1,26 +1,31 @@
-use super::GroupType;
-
 use std::ops::{Bound, Index, RangeBounds};
+
+pub trait MatchIndex<T> {
+    fn get(&self, index: T) -> Option<&Match>;
+}
 
 #[derive(Debug)]
 pub struct Matches {
     pub(crate) matches: Vec<(Option<String>, Match)>,
 }
 
-impl Matches {
-    pub fn get<'a>(&'a self, g: impl Into<GroupType<'a>>) -> Option<&Match> {
-        match g.into() {
-            GroupType::Index(n) => self.matches.get(n).map(|(_, m)| m),
-            GroupType::Named(q) => {
-                let n = self.matches.iter().position(|(s, _)| match s {
-                    Some(n) if *n == q => true,
-                    _ => false,
-                })?;
-                Some(&self.matches[n].1)
-            }
-        }
+impl MatchIndex<usize> for Matches {
+    fn get(&self, index: usize) -> Option<&Match> {
+        self.matches.get(index).map(|(_, m)| m)
     }
+}
 
+impl<'a> MatchIndex<&'a str> for Matches {
+    fn get(&self, index: &'a str) -> Option<&Match> {
+        let n = self.matches.iter().position(|(s, _)| match s {
+            Some(n) if *n == index => true,
+            _ => false,
+        })?;
+        Some(&self.matches[n].1)
+    }
+}
+
+impl Matches {
     pub fn len(&self) -> usize {
         self.matches.len()
     }

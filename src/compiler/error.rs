@@ -16,6 +16,6 @@ pub enum ErrorKind {
 
 impl From<ErrorKind> for Error {
     fn from(kind: ErrorKind) -> Self {
-        Error { kind: kind }
+        Error { kind }
     }
 }

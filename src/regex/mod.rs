@@ -3,13 +3,9 @@ use crate::machine::Machine;
 use crate::parser::Parser;
 use crate::Error;
 
-mod grouptype;
 mod matches;
 
-pub use self::{
-    grouptype::GroupType,
-    matches::{Match, Matches},
-};
+pub use self::matches::{Match, MatchIndex, Matches};
 
 pub struct Regex {
     machine: Machine,
