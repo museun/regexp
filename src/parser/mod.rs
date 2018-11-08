@@ -136,10 +136,10 @@ impl<'a> Parser<'a> {
 
     fn metacharacter(&mut self) -> Result<()> {
         // \d -> [0-9]
-        // \w -> [A-Za-z0-9]
-        // \s -> [ \t\n\r\f]
         // \D -> [^0-9]
+        // \w -> [A-Za-z0-9]
         // \W -> [^A-Za-z0-9]
+        // \s -> [ \t\n\r\f]
         // \S -> [^ \t\n\r\f]
         // \l -> [a-z]
         // \L -> [^a-z]
@@ -160,6 +160,7 @@ impl<'a> Parser<'a> {
                 for n in (b'A'..=b'Z').chain(b'a'..=b'z').chain(b'0'..=b'9') {
                     cs.add(n as char);
                 }
+                cs.add(b'_' as char);
                 if c == 'W' {
                     cs.complement();
                 }
@@ -694,6 +695,7 @@ mod tests {
                 for n in (b'A'..=b'Z').chain(b'a'..=b'z').chain(b'0'..=b'9') {
                     cs.add(n as char);
                 }
+                cs.add(b'_' as char);
                 cs
             }),
             (r"\W", {
@@ -701,6 +703,7 @@ mod tests {
                 for n in (b'A'..=b'Z').chain(b'a'..=b'z').chain(b'0'..=b'9') {
                     cs.add(n as char);
                 }
+                cs.add(b'_' as char);
                 cs.complement();
                 cs
             }),
