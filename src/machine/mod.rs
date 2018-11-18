@@ -6,11 +6,11 @@ mod matches;
 mod thread;
 
 use self::{
-    action::Action,       //
-    locations::Locations, //
-    matches::Match,       //
-    matches::Matches,     //
-    thread::Thread,       //
+    action::Action,
+    locations::Locations,
+    matches::Match,
+    matches::Matches,
+    thread::Thread,
 };
 
 #[derive(Debug)]

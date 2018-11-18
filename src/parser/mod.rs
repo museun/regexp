@@ -784,7 +784,7 @@ mod tests {
         }
 
         macro_rules! rep {
-            ($e:expr, $r:expr ) => {
+            ($e:expr, $r:expr) => {
                 Expr::Repetition(
                     Box::new($e),
                     match $r {
@@ -796,7 +796,7 @@ mod tests {
                 )
             };
 
-            ($e:expr, $r:expr, $greedy:expr ) => {
+            ($e:expr, $r:expr, $greedy:expr) => {
                 Expr::Repetition(
                     Box::new($e),
                     match $r {
