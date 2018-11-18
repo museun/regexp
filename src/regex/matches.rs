@@ -4,11 +4,6 @@ pub trait MatchIndex<T> {
     fn get(&self, index: T) -> Option<&Match>;
 }
 
-#[derive(Debug)]
-pub struct Matches {
-    pub(crate) matches: Vec<(Option<String>, Match)>,
-}
-
 impl MatchIndex<usize> for Matches {
     fn get(&self, index: usize) -> Option<&Match> {
         self.matches.get(index).map(|(_, m)| m)
@@ -23,6 +18,11 @@ impl<'a> MatchIndex<&'a str> for Matches {
         })?;
         Some(&self.matches[n].1)
     }
+}
+
+#[derive(Debug)]
+pub struct Matches {
+    pub(crate) matches: Vec<(Option<String>, Match)>,
 }
 
 impl Matches {

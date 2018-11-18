@@ -137,8 +137,8 @@ impl<'a> Parser<'a> {
     fn metacharacter(&mut self) -> Result<()> {
         // \d -> [0-9]
         // \D -> [^0-9]
-        // \w -> [A-Za-z0-9]
-        // \W -> [^A-Za-z0-9]
+        // \w -> [A-Za-z0-9_]
+        // \W -> [^A-Za-z0-9_]
         // \s -> [ \t\n\r\f]
         // \S -> [^ \t\n\r\f]
         // \l -> [a-z]
@@ -261,7 +261,7 @@ impl<'a> Parser<'a> {
             _ => return self.error(ErrorKind::UnmatchedParen),
         }
 
-        self.paren -= 1; // TODO check for underflow (shouldn't be possible)
+        self.paren = self.paren.saturating_sub(1);
         Ok(())
     }
 

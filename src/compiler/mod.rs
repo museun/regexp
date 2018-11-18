@@ -339,14 +339,3 @@ pub(crate) fn digits(n: u32) -> usize {
     }
     x
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn count_digits() {
-        let n = 123456789;
-        assert_eq!(digits(n), 9);
-    }
-}
