@@ -36,8 +36,6 @@ impl Regex {
             .matches(input)
             .into_iter()
             .filter(|m| !m.0.is_empty())
-            // this isn't the zeroth group
-            .skip(1)
         {
             for match_ in matches.0.iter().cloned().filter_map(|s| s) {
                 min = std::cmp::min(min, match_.start);
