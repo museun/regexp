@@ -8,7 +8,8 @@ pub(crate) enum Operation {
     CharSet(parser::CharSet),
     Split(Option<u32>, Option<u32>),
     Jump(Option<u32>),
-    Save(u32),
+    Start(u32),
+    End(u32),
     Bol,
     Eol,
 }

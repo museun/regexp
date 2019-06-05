@@ -1,20 +1,17 @@
-use crate::parser;
-
-use std::cmp::max;
 use std::collections::VecDeque;
-use std::io::Write;
+type Result<T> = std::result::Result<T, Error>;
 
 mod error;
 mod instruction;
 mod operation;
+mod program;
 
 pub use self::error::{Error, ErrorKind};
 pub use self::instruction::Instruction;
+pub use self::program::Program;
+
+use crate::parser;
 use self::operation::Operation;
-
-type Result<T> = std::result::Result<T, Error>;
-
-const MAX_GROUPS: usize = 10 * 2;
 
 #[derive(Debug, Copy, Clone)]
 pub enum Char {
@@ -38,69 +35,27 @@ impl State {
     }
 }
 
-#[derive(Debug, Default)]
-pub struct Program {
-    pub insts: Vec<Instruction>,
-    pub names: Vec<Option<String>>, // None for unnamed groups, so indices are correct
+#[derive(Debug, Clone)]
+pub enum GroupType {
+    Unnamed(u32),
+    Named(u32, String),
 }
 
-impl Program {
-    pub fn dump<W: Write>(&self, w: &mut W) {
-        let mut labels = vec![];
-        for inst in self.insts.iter() {
-            match *inst {
-                Instruction::Split(x, y) => labels.extend_from_slice(&[x, y]),
-                Instruction::Jump(n) => labels.push(n),
-                _ => continue,
-            }
-        }
-        labels.sort_unstable();
-        labels.dedup_by(|a, b| *a > 0 && a == b);
-
-        let max = self
-            .insts
-            .iter()
-            .map(|i| i.columns())
-            .fold(vec![0; 3], |mut a, b| {
-                for (i, n) in b.iter().enumerate() {
-                    a[i] = max(a[i], *n)
-                }
-                a
-            });
-
-        let label_max = digits(*labels.iter().max_by(|x, y| x.cmp(y)).unwrap()) + 1; // for the colon
-        let label_pad = std::iter::repeat(" ").take(label_max).collect();
-
-        for (i, inst) in self.insts.iter().enumerate() {
-            let label = if labels.iter().any(|&n| n == i as u32) {
-                Some(format!("{:^1$}", format!("{}:", i), label_max))
-            } else {
-                None
-            };
-            let name = format!("{: >1$}", format!("{}", inst), max[0]);
-            let args = match inst {
-                Instruction::Split(x, y) => format!("{:<2$} or {:>3$}", x, y, max[1], max[2]),
-                Instruction::Jump(n) => format!("{}", n),
-                Instruction::Save(n) => format!("#{}", n),
-                Instruction::Char(Char::Char(ch)) => format!("{}", ch),
-                Instruction::CharSet(cs) => format!("{}", cs),
-                _ => "".into(),
-            };
-            writeln!(
-                w,
-                "{} {} | {}",
-                label.as_ref().unwrap_or_else(|| &label_pad),
-                name,
-                args,
-            )
-            .unwrap()
+impl PartialEq for GroupType {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (GroupType::Named(.., ln), GroupType::Named(.., rn)) => ln.eq(rn),
+            (GroupType::Named(l, ..), GroupType::Unnamed(r))
+            | (GroupType::Unnamed(l), GroupType::Named(r, ..))
+            | (GroupType::Unnamed(l), GroupType::Unnamed(r)) => l.eq(r),
         }
     }
 }
 
 pub struct Compiler {
     ops: Vec<Operation>,
-    names: VecDeque<Option<String>>, // need to keep these in the right order
+    names: VecDeque<GroupType>, // need to keep these in the right order
+    group: u32,
 }
 
 impl Compiler {
@@ -108,9 +63,10 @@ impl Compiler {
         let mut compiler = Compiler {
             ops: vec![],
             names: VecDeque::new(),
+            group: 1,
         };
 
-        compiler.names.push_back(None); // for 0th group
+        compiler.names.push_back(GroupType::Unnamed(0)); // for 0th group
 
         if regex.bol {
             compiler.emit(Operation::Bol);
@@ -121,15 +77,15 @@ impl Compiler {
             compiler.emit(Operation::Jump(Some(0)));
         }
 
-        compiler.emit(Operation::Save(0));
+        compiler.emit(Operation::Start(0));
         let res = compiler.visit(&regex.expr)?;
 
         let pc = if regex.eol {
             let pc = compiler.emit(Operation::Eol);
-            compiler.emit(Operation::Save(1));
+            compiler.emit(Operation::End(0));
             pc
         } else {
-            compiler.emit(Operation::Save(1))
+            compiler.emit(Operation::End(0))
         };
 
         for branch in res.branches {
@@ -173,25 +129,27 @@ impl Compiler {
     ) -> Result<State> {
         if n.is_some() {
             if let Some(name) = name {
-                let opt = Some(name);
+                let opt = GroupType::Named(self.group, name);
                 if self.names.contains(&opt) {
                     return Err(ErrorKind::GroupAlreadyDefined.into());
                 }
                 self.names.push_back(opt);
             } else {
-                self.names.push_back(None);
+                self.names.push_back(GroupType::Unnamed(self.group));
             }
+            self.group += 1;
         }
 
-        let i = match n {
-            None => return self.visit(expr),
-            Some(i) if i >= MAX_GROUPS as u8 => return self.visit(expr),
-            Some(i) => u32::from(i),
+        if n.is_none() {
+            return self.visit(expr);
         };
 
-        let begin = self.emit(Operation::Save(i * 2)); // probably won't collide
+        let group = self.group;
+        let begin = self.emit(Operation::Start(group));
+        self.group += 1;
+
         let state = self.visit(expr)?;
-        let end = self.emit(Operation::Save(i * 2 + 1));
+        let end = self.emit(Operation::Start(group));
 
         for branch in state.branches {
             self.kill(branch, end)
@@ -327,7 +285,7 @@ impl Compiler {
 }
 
 #[inline]
-pub(crate) fn digits(n: u32) -> usize {
+pub(crate) fn count_digits(n: u32) -> usize {
     if n == 0 {
         return 1;
     }

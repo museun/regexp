@@ -17,7 +17,7 @@ pub fn new<S>(input: S) -> Result<regex::Regex, Error>
 where
     S: AsRef<str>,
 {
-    regex::Regex::new(input.as_ref())
+    regex::Regex::compile(input.as_ref())
 }
 
 pub fn find<S>(pattern: S, input: S) -> Result<bool, Error>

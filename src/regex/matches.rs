@@ -1,31 +1,22 @@
-use std::ops::{Bound, Index, RangeBounds};
+use crate::compiler::GroupType;
 
-pub trait MatchIndex<T> {
-    fn get(&self, index: T) -> Option<&Match>;
+use std::ops::{Bound, RangeBounds,Range};
+
+#[derive(Debug, Clone)]
+pub struct Matches<'a> {
+    source: &'a str,
+    matches: Vec<(GroupType, Range<usize>)>,
 }
 
-impl MatchIndex<usize> for Matches {
-    fn get(&self, index: usize) -> Option<&Match> {
-        self.matches.get(index).map(|(_, m)| m)
+impl<'a> Matches<'a> {
+    pub(crate) fn new(source: &'a str, matches: Vec<(GroupType, Range<usize>)>) -> Self {
+        Self { source, matches }
     }
-}
 
-impl<'a> MatchIndex<&'a str> for Matches {
-    fn get(&self, index: &'a str) -> Option<&Match> {
-        let n = self.matches.iter().position(|(s, _)| match s {
-            Some(n) if *n == index => true,
-            _ => false,
-        })?;
-        Some(&self.matches[n].1)
+    pub fn success(&self) -> bool {
+        !self.is_empty()
     }
-}
 
-#[derive(Debug)]
-pub struct Matches {
-    pub(crate) matches: Vec<(Option<String>, Match)>,
-}
-
-impl Matches {
     pub fn len(&self) -> usize {
         self.matches.len()
     }
@@ -34,46 +25,82 @@ impl Matches {
         self.len() == 0
     }
 
-    pub fn group_names(&self) -> Vec<&String> {
+    pub fn groups(&self) -> Vec<&str> {
         self.matches
             .iter()
-            .filter_map(|(m, _)| m.as_ref())
+            .filter_map(|(m, _)| match m {
+                GroupType::Unnamed(..) => None,
+                GroupType::Named(.., name) => Some(name.as_ref()),
+            })
             .collect()
     }
-}
 
-impl Index<usize> for Matches {
-    type Output = Match;
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.matches[index].1
+    pub fn iter(&self) -> MatchesIter<'a> {
+        self.clone().into_iter()
     }
 }
 
-impl<'a> Index<&'a str> for Matches {
-    type Output = Match;
-    fn index(&self, index: &'a str) -> &Self::Output {
-        for (n, m) in &self.matches {
-            match n {
-                Some(n) if n == index => return &m,
-                _ => {}
-            }
+impl<'a> IntoIterator for Matches<'a> {
+    type Item = Match;
+    type IntoIter = MatchesIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        MatchesIter {
+            matches: self,
+            pos: 0,
         }
-        panic!("{} not found", index)
     }
 }
 
-#[derive(Debug, PartialEq)]
+pub struct MatchesIter<'a> {
+    matches: Matches<'a>,
+    pos: usize,
+}
+
+impl<'a> Iterator for MatchesIter<'a> {
+    type Item = Match;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos == self.matches.len() {
+            return None;
+        }
+        let tmp = &self.matches.matches[self.pos];
+        self.pos += 1;
+        Some(Match {
+            group: tmp.0.clone(),
+            value: self.matches.source[tmp.1.clone()].to_string(),
+            range: tmp.1.clone(),
+        })
+    }
+}
+
+#[derive(Debug)]
 pub struct Match {
-    pub start: usize,
-    pub end: usize,
+    group: GroupType,
+    value: String, // pre sliced
+    range: Range<usize>,
+}
+
+impl Match {
+    pub fn group(&self) -> &GroupType {
+        &self.group
+    }
+
+    pub fn range(&self) -> &Range<usize> {
+        &self.range
+    }
+
+    pub fn value(&self) -> &str {
+        &self.value
+    }
 }
 
 impl RangeBounds<usize> for Match {
     fn start_bound(&self) -> Bound<&usize> {
-        Bound::Included(&self.start)
+        Bound::Included(&self.range.start)
     }
 
     fn end_bound(&self) -> Bound<&usize> {
-        Bound::Excluded(&self.end)
+        Bound::Excluded(&self.range.end)
     }
 }

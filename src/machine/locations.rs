@@ -22,8 +22,7 @@ impl fmt::Debug for Locations {
                 if i > 0 {
                     a.push_str(", ");
                 }
-                // whatever
-                a.push_str(&format!("{}", c.unwrap()));
+                a.push_str(&c.unwrap().to_string());
                 a
             });
 

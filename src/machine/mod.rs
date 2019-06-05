@@ -1,4 +1,4 @@
-use crate::{compiler, compiler::Instruction};
+use crate::{compiler, compiler::Instruction, compiler::GroupType};
 
 mod action;
 mod locations;
@@ -20,8 +20,10 @@ pub struct Machine {
     stack: Vec<Action>,
     matched: bool,
 
-    names: Vec<Option<String>>,
+    names: Vec<GroupType>,
     locations: Locations,
+
+    group: u32,
 }
 
 impl Machine {
@@ -35,9 +37,12 @@ impl Machine {
 
             names: program.names,
             locations: Locations::default(),
+
+            group: 1,
         }
     }
 
+    // TODO rewrite this
     pub fn matches(&mut self, input: impl AsRef<str>) -> Vec<Matches> {
         let input = input.as_ref();
 
@@ -56,11 +61,11 @@ impl Machine {
 
             let mut matched = vec![];
             for (i, loc) in self.locations.chunks(2).enumerate() {
-                let match_ = match (loc.get(0), loc.get(1)) {
-                    (Some(Some(start)), Some(Some(end))) => Some(Match {
-                        name: self.names.get(i).and_then(|s| s.clone()),
-                        start: *start,
-                        end: *end,
+                let match_ = match (loc[0], loc[1]) {
+                    (Some(start), Some(end)) => Some(Match {
+                        name: self.names[i].clone(),
+                        start,
+                        end,
                     }),
                     _ => break,
                 };
@@ -70,7 +75,6 @@ impl Machine {
                     initial = true;
                     continue;
                 }
-
                 matched.push(match_);
             }
             matches.push(Matches(matched));
@@ -79,14 +83,15 @@ impl Machine {
         matches
     }
 
-    pub fn find_match(&mut self, input: impl AsRef<str>, mut pos: usize) -> (bool, usize) {
+    pub fn find_match(&mut self, input: impl AsRef<str>, pos: usize) -> (bool, usize) {
         let len = self.program.len();
-        let mut current = Vec::with_capacity(len);
-        let mut next = Vec::with_capacity(len);
+        let (mut current, mut next) = (Vec::with_capacity(len), Vec::with_capacity(len));
         self.visited = vec![0; len];
 
         let chars = input.as_ref().chars().collect::<Vec<_>>();
+
         let len = chars.len();
+        let mut pos = pos;
 
         // clear the other locations, so the new ones are always at the front
         // TODO probably use deque here and drain it for the return..
@@ -96,37 +101,13 @@ impl Machine {
         self.epsilon(&mut thread, 0, len, &mut current);
 
         while !current.is_empty() {
-            'thread: for thread in current.iter_mut() {
-                match self.program[thread.pc as usize] {
-                    Instruction::Char(compiler::Char::Char(ch)) => {
-                        if pos < chars.len() && chars[pos] == ch {
-                            thread.pc += 1;
-                            if self.epsilon(thread, pos + 1, len, &mut next) {
-                                break 'thread;
-                            }
-                        }
-                    }
-                    Instruction::Char(compiler::Char::Any) => {
-                        if pos < len {
-                            thread.pc += 1;
-                            if self.epsilon(thread, pos + 1, len, &mut next) {
-                                break 'thread;
-                            }
-                        }
-                    }
-                    Instruction::CharSet(cs) => {
-                        if pos < len && cs.has(chars[pos]) {
-                            thread.pc += 1;
-                            if self.epsilon(thread, pos + 1, len, &mut next) {
-                                break 'thread;
-                            }
-                        }
-                    }
-                    _ => {
-                        if self.epsilon(thread, pos, len, &mut next) {
-                            break 'thread;
-                        }
-                    }
+            'thread: for mut thread in current.iter_mut() {
+                if pos >= chars.len() {
+                    break 'thread;
+                }
+
+                if !self.evaluate(pos, len, &chars, &mut thread, &mut next) {
+                    break 'thread;
                 }
             }
 
@@ -136,6 +117,33 @@ impl Machine {
         }
 
         (self.matched, pos)
+    }
+
+    fn evaluate(
+        &mut self,
+        pos: usize,
+        len: usize,
+        chars: &[char],
+        thread: &mut Thread,
+        next: &mut Vec<Thread>,
+    ) -> bool {
+        let mut pos = pos;
+        match self.program[thread.pc as usize] {
+            Instruction::Char(compiler::Char::Char(ch)) if chars[pos] == ch => {
+                thread.pc += 1;
+                pos += 1;
+            }
+            Instruction::Char(compiler::Char::Any) => {
+                thread.pc += 1;
+                pos += 1;
+            }
+            Instruction::CharSet(cs) if cs.has(chars[pos]) => {
+                thread.pc += 1;
+                pos += 1;
+            }
+            _ => {}
+        }
+        !self.epsilon(thread, pos, len, next)
     }
 
     fn epsilon(&mut self, t: &mut Thread, pos: usize, len: usize, list: &mut Vec<Thread>) -> bool {
@@ -164,7 +172,6 @@ impl Machine {
                 break;
             }
             self.visited[t.pc as usize] = pos + 1;
-
             match self.program[t.pc as usize] {
                 Instruction::Match => {
                     self.locations = t.loc;
@@ -188,10 +195,16 @@ impl Machine {
                     t.pc = x
                 }
                 Instruction::Jump(pc) => t.pc = pc,
-                Instruction::Save(n) => {
-                    let g = t.loc[n as usize];
-                    self.stack.push(Action::Return(n, g));
+                Instruction::Start(n) => {
+                    let start = t.loc[n as usize];
+                    self.stack.push(Action::Return(n, start));
                     t.loc[n as usize] = Some(pos);
+                    t.pc += 1;
+                }
+
+                Instruction::End(n) => {
+                    let start = t.loc[n as usize];
+                    self.stack.push(Action::Return(n, start));
                     t.pc += 1;
                 }
                 _ => {

@@ -1,25 +1,23 @@
-use crate::compiler::Compiler;
+use crate::compiler::{Compiler,GroupType};
 use crate::machine::Machine;
 use crate::parser::Parser;
 use crate::Error;
 
 mod matches;
+pub use self::matches::{Match, Matches};
 
-pub use self::matches::{Match, MatchIndex, Matches};
+use std::ops::Range;
 
 pub struct Regex {
     machine: Machine,
 }
 
 impl Regex {
-    #[allow(clippy::new_ret_no_self)]
-    pub fn new(pattern: &str) -> Result<Regex, Error> {
+    pub fn compile(pattern: &str) -> Result<Regex, Error> {
         let ast = Parser::parse(pattern).map_err(Error::ParserError)?;
         let prog = Compiler::compile(&ast).map_err(Error::CompilerError)?;
-
-        Ok(Self {
-            machine: Machine::new(prog),
-        })
+        let machine = Machine::new(prog);
+        Ok(Self { machine })
     }
 
     pub fn find(&mut self, input: &str) -> bool {
@@ -27,9 +25,13 @@ impl Regex {
         ok
     }
 
-    pub fn matches(&mut self, input: &str) -> Matches {
-        let mut results = Matches { matches: vec![] };
+    pub fn matches<'a, 'b: 'a>(&'b mut self, input: &'a str) -> Matches<'a> {
+        use std::cmp;
+        fn range<T>((start, end): (T, T)) -> Range<T> {
+            Range { start, end }
+        }
 
+        let mut results = vec![];
         let (mut min, mut max) = (0, 0);
         for matches in self
             .machine
@@ -37,32 +39,15 @@ impl Regex {
             .into_iter()
             .filter(|m| !m.0.is_empty())
         {
-            for match_ in matches.0.iter().cloned().filter_map(|s| s) {
-                min = std::cmp::min(min, match_.start);
-                max = std::cmp::max(max, match_.end);
-
-                results.matches.push((
-                    match_.name,
-                    Match {
-                        start: match_.start,
-                        end: match_.end,
-                    },
-                ));
+            for m in matches.0.iter().cloned().filter_map(|s| s) {
+                min = cmp::min(min, m.start);
+                max = cmp::max(max, m.end);
+                results.push((m.name, range((m.start, m.end))))
             }
         }
 
-        // put the zeroth group in. I don't know where we lost it
-        results.matches.insert(
-            0,
-            (
-                None,
-                Match {
-                    start: min,
-                    end: max,
-                },
-            ),
-        );
-
-        results
+        // total match group
+        results.insert(0, (GroupType::Unnamed(0), range((min, max))));
+        Matches::new(&input, results)
     }
 }
